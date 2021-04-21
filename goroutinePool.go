@@ -2,6 +2,7 @@ package goroutinePool
 
 import (
 	"errors"
+	"log"
 	"sync"
 	"time"
 )
@@ -18,6 +19,7 @@ type taskChan struct {
 
 type Pool struct {
 	MaxWorkerCount int
+	currentWorkerCount int
 	taskChans []*taskChan
 	MaxIdleWorkerTime time.Duration
 	stop bool
@@ -67,20 +69,63 @@ func (pool *Pool) clean() {
 
 // FIFO
 func (pool *Pool) getTaskChan() *taskChan {
-	var ch *taskChan
+	var taskCh *taskChan
 	pool.lock.Lock()
 	defer pool.lock.Unlock()
 
 	if len(pool.taskChans) > 0 {
-		ch = pool.taskChans[0]
+		taskCh = pool.taskChans[0]
 		pool.taskChans = pool.taskChans[1:]
 	} else {
-		ch = &taskChan{
+		taskCh = &taskChan{
 			ch: make(chan Task),
-			lastUsedTime: time.Now(),
 		}
-		pool.taskChans = append(pool.taskChans, ch)
 	}
 
-	return ch
+	return taskCh
+}
+
+func (pool *Pool) consume(taskCh *taskChan) {
+	// 为这个 taskChan 开启一个对应的 goroutine
+	go func() {
+		// 防止 task 运行时发生 panic 导致整个程序崩溃
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("task panic: %s\n", r)
+			}
+		}()
+
+		for {
+			if task, ok := <-taskCh.ch; ok {
+				taskCh.lastUsedTime = time.Now()
+				task.Handler(task.Params...)
+			} else {
+				break
+			}
+		}
+	}()
+}
+
+func (pool *Pool) Put(task Task) error {
+	if pool.stop {
+		return errors.New("THE POOL HAS BEEN STOPPED")
+	}
+
+	taskCh := pool.getTaskChan()
+	if len(pool.taskChans) < pool.MaxWorkerCount {
+		pool.consume(taskCh)
+		taskCh.ch <-task
+		pool.taskChans = append(pool.taskChans, taskCh)
+		return nil
+	}
+
+	return errors.New("TOO MANY TASKCHAN")
+}
+
+func (pool *Pool) Stop() {
+	pool.stop = true
+
+	for i := range pool.taskChans {
+		close(pool.taskChans[i].ch)
+	}
 }
