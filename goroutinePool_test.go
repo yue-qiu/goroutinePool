@@ -47,7 +47,7 @@ func TestPoolPut(t *testing.T) {
 	}
 }
 
-func BenchmarkPool_Put(b *testing.B) {
+func BenchmarkPool(b *testing.B) {
 	b.ReportAllocs()
 
 	pool := NewGoroutinePool(100, time.Second)
@@ -73,7 +73,7 @@ func BenchmarkPool_Put(b *testing.B) {
 	b.StopTimer()
 }
 
-func BenchmarkNormal(b *testing.B) {
+func BenchmarkWithoutPool(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
