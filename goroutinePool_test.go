@@ -14,7 +14,7 @@ var wg = sync.WaitGroup{}
 
 var handler = func(params ...interface{}) {
 	wg.Done()
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < 100; i++ {
 		atomic.AddUint64(&sum, 1)
 	}
 }
@@ -48,19 +48,21 @@ func TestPoolPut(t *testing.T) {
 }
 
 func BenchmarkPool_Put(b *testing.B) {
-	pool := NewGoroutinePool(100, time.Second)
+	b.ReportAllocs()
+
+	pool := NewGoroutinePool(20, time.Second)
 	pool.Serve()
 	defer pool.Stop()
 
+	task := Task{
+		Handler: handler,
+		Params: []interface{}{},
+	}
 	b.ResetTimer()
+
 	for i := 0; i < b.N; i++ {
 		wg.Add(runtimes)
 		for j := 0; j < runtimes; j++ {
-			task := Task{
-				Handler: handler,
-				Params: []interface{}{},
-			}
-
 			err := pool.Put(task)
 			if err != nil {
 				log.Println(err)
@@ -72,6 +74,8 @@ func BenchmarkPool_Put(b *testing.B) {
 }
 
 func BenchmarkNormal(b *testing.B) {
+	b.ReportAllocs()
+
 	for i := 0; i < b.N; i++ {
 		wg.Add(runtimes)
 		for j := 0; j < runtimes; j++ {
