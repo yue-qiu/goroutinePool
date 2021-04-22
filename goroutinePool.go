@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -19,7 +20,7 @@ type taskChan struct {
 
 type Pool struct {
 	MaxWorkerCount int
-	currentWorkerCount int
+	currentWorkerCount int64
 	taskChans []*taskChan
 	MaxIdleWorkerTime time.Duration
 	stop bool
@@ -34,6 +35,14 @@ func NewGoroutinePool(maxWorkerCount int, maxIdleWorkerTime time.Duration) *Pool
 		stop: false,
 		lock: &sync.Mutex{},
 	}
+}
+
+func (pool *Pool) dec() {
+	atomic.AddInt64(&pool.currentWorkerCount, -1)
+}
+
+func (pool *Pool) inc() {
+	atomic.AddInt64(&pool.currentWorkerCount, 1)
 }
 
 func (pool *Pool) Serve() error {
@@ -53,32 +62,43 @@ func (pool *Pool) Serve() error {
 
 func (pool *Pool) clean() {
 	now := time.Now()
-	cnt := 0
 	pool.lock.Lock()
 	defer pool.lock.Unlock()
+	m := len(pool.taskChans)
+	cnt := 0
 
-	for _, taskChan := range pool.taskChans {
-		if now.Sub(taskChan.lastUsedTime) > pool.MaxIdleWorkerTime {
+	tmp := make([]*taskChan, m)
+	for _, taskCh := range pool.taskChans {
+		if now.Sub(taskCh.lastUsedTime) >= pool.MaxIdleWorkerTime {
+			close(taskCh.ch)
+			pool.dec()
+		} else {
+			tmp[cnt] = taskCh
 			cnt++
-			close(taskChan.ch)
 		}
+
 	}
 
-	pool.taskChans = pool.taskChans[cnt:]
+	pool.taskChans = tmp[:cnt]
 }
 
-// FIFO
 func (pool *Pool) getTaskChan() *taskChan {
 	var taskCh *taskChan
 	pool.lock.Lock()
 	defer pool.lock.Unlock()
 
-	if len(pool.taskChans) > 0 {
-		taskCh = pool.taskChans[0]
-		pool.taskChans = pool.taskChans[1:]
-	} else {
+	if int(pool.currentWorkerCount) < pool.MaxWorkerCount {
 		taskCh = &taskChan{
 			ch: make(chan Task),
+		}
+		pool.inc()
+		pool.taskChans = append(pool.taskChans, taskCh)
+	} else {
+		for i := 0; i < len(pool.taskChans); i++ {
+			if time.Now().Sub(pool.taskChans[i].lastUsedTime) < pool.MaxIdleWorkerTime {
+				taskCh = pool.taskChans[i]
+				break
+			}
 		}
 	}
 
@@ -112,14 +132,10 @@ func (pool *Pool) Put(task Task) error {
 	}
 
 	taskCh := pool.getTaskChan()
-	if len(pool.taskChans) < pool.MaxWorkerCount {
-		pool.consume(taskCh)
-		taskCh.ch <-task
-		pool.taskChans = append(pool.taskChans, taskCh)
-		return nil
-	}
+	pool.consume(taskCh)
+	taskCh.ch <-task
+	return nil
 
-	return errors.New("TOO MANY TASKCHAN")
 }
 
 func (pool *Pool) Stop() {

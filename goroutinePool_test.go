@@ -3,9 +3,23 @@ package goroutinePool
 import (
 	"log"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
+
+var sum uint64 = 0
+
+var wg = sync.WaitGroup{}
+
+var handler = func(params ...interface{}) {
+	wg.Done()
+	for i := 0; i < 1000; i++ {
+		atomic.AddUint64(&sum, 1)
+	}
+}
+
+var runtimes = 1000000
 
 func TestPoolPut(t *testing.T) {
 	pool := NewGoroutinePool(100, time.Second)
@@ -14,24 +28,11 @@ func TestPoolPut(t *testing.T) {
 		t.Error()
 	}
 
-	lock := sync.Mutex{}
-	handler := func(params ...interface{}) {
-		a, b := 0, 1
-		for i :=0; i < (params[0]).(int); i++ {
-			a, b = b, a + b
-		}
-
-		lock.Lock()
-		res := (params[1]).(*[]int)
-		*res = append(*res, b)
-		lock.Unlock()
-	}
-	res := make([]int, 0)
-
-	for i := 0; i < 100; i++ {
+	wg.Add(runtimes)
+	for i := 0; i < runtimes; i++ {
 		task := Task{
 			Handler: handler,
-			Params: []interface{}{i, &res},
+			Params: []interface{}{},
 		}
 
 		err = pool.Put(task)
@@ -39,56 +40,43 @@ func TestPoolPut(t *testing.T) {
 			t.Error()
 		}
 	}
+	wg.Wait()
 
-	log.Printf("%v\n", res)
+	if sum != uint64(100 * runtimes) {
+		t.Error()
+	}
 }
 
 func BenchmarkPool_Put(b *testing.B) {
 	pool := NewGoroutinePool(100, time.Second)
 	pool.Serve()
-	lock := sync.Mutex{}
-	handler := func(params ...interface{}) {
-		a, b := 0, 1
-		for i :=0; i < (params[0]).(int); i++ {
-			a, b = b, a + b
-		}
+	defer pool.Stop()
 
-		lock.Lock()
-		res := (params[1]).(*[]int)
-		*res = append(*res, b)
-		lock.Unlock()
-	}
-	res := make([]int, 0)
-
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		task := Task{
-			Handler: handler,
-			Params: []interface{}{i, &res},
-		}
+		wg.Add(runtimes)
+		for j := 0; j < runtimes; j++ {
+			task := Task{
+				Handler: handler,
+				Params: []interface{}{},
+			}
 
-		err := pool.Put(task)
-		if err != nil {
-			log.Println(err)
+			err := pool.Put(task)
+			if err != nil {
+				log.Println(err)
+			}
 		}
+		wg.Wait()
 	}
+	b.StopTimer()
 }
 
 func BenchmarkNormal(b *testing.B) {
-	lock := sync.Mutex{}
-	handler := func(params ...interface{}) {
-		a, b := 0, 1
-		for i :=0; i < (params[0]).(int); i++ {
-			a, b = b, a + b
-		}
-
-		lock.Lock()
-		res := (params[1]).(*[]int)
-		*res = append(*res, b)
-		lock.Unlock()
-	}
-	res := make([]int, 0)
-
 	for i := 0; i < b.N; i++ {
-		go handler([]interface{}{i, &res}...)
+		wg.Add(runtimes)
+		for j := 0; j < runtimes; j++ {
+			go handler([]interface{}{}...)
+		}
+		wg.Wait()
 	}
 }
