@@ -90,25 +90,6 @@ func (pool *Pool) clean() {
 	}
 }
 
-func (pool *Pool) getTaskChan() *taskChan {
-	var taskCh *taskChan
-	pool.lock.Lock()
-	defer pool.lock.Unlock()
-
-	if pool.getCurrentWorkerCount() < pool.MaxWorkerCount {
-		// create a new worker
-		taskCh = &taskChan{
-			ch: make(chan Task, 0),
-		}
-		pool.taskChans[pool.getCurrentWorkerCount()] = taskCh
-		pool.inc()
-	} else { // random choose a old worker
-		taskCh = pool.taskChans[rand.Intn(pool.getCurrentWorkerCount())]
-	}
-
-	return taskCh
-}
-
 func (pool *Pool) consume(taskCh *taskChan) {
 	// 为这个 taskChan 开启一个对应的 goroutine
 	go func() {
@@ -130,13 +111,32 @@ func (pool *Pool) consume(taskCh *taskChan) {
 	}()
 }
 
+func (pool *Pool) getTaskChan() *taskChan {
+	var taskCh *taskChan
+	pool.lock.Lock()
+	defer pool.lock.Unlock()
+
+	if pool.getCurrentWorkerCount() < pool.MaxWorkerCount {
+		// create a new worker
+		taskCh = &taskChan{
+			ch: make(chan Task, 0),
+		}
+		pool.taskChans[pool.getCurrentWorkerCount()] = taskCh
+		pool.inc()
+		pool.consume(taskCh)
+	} else { // random choose a old worker
+		taskCh = pool.taskChans[rand.Intn(pool.getCurrentWorkerCount())]
+	}
+
+	return taskCh
+}
+
 func (pool *Pool) Put(task Task) error {
 	if pool.stop {
 		return errors.New("THE POOL HAS BEEN STOPPED")
 	}
 
 	taskCh := pool.getTaskChan()
-	pool.consume(taskCh)
 	taskCh.ch <-task
 	return nil
 

@@ -50,7 +50,7 @@ func TestPoolPut(t *testing.T) {
 func BenchmarkPool_Put(b *testing.B) {
 	b.ReportAllocs()
 
-	pool := NewGoroutinePool(20, time.Second)
+	pool := NewGoroutinePool(100, time.Second)
 	pool.Serve()
 	defer pool.Stop()
 
