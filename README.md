@@ -62,6 +62,6 @@ go version: 1.15.6 windows/amd64
 ```
 goos: windows
 goarch: amd64
-BenchmarkPool-4                        2        1941499500 ns/op            4736 B/op         34 allocs/op
-BenchmarkWithoutPool-4                 2        2102499150 ns/op        68828080 B/op     160767 allocs/op
+BenchmarkPool-4                        2        2169999750 ns/op            5736 B/op         40 allocs/op
+BenchmarkWithoutPool-4                 2        2417999700 ns/op        61800960 B/op     147309 allocs/op
 ```

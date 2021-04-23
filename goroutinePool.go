@@ -36,6 +36,7 @@ func NewGoroutinePool(maxWorkerCount int, maxIdleWorkerTime time.Duration) *Pool
 		taskChans: make([]*taskChan, maxWorkerCount),
 		stop: false,
 		lock: &sync.Mutex{},
+		cleanlock: &sync.Mutex{},
 	}
 }
 
@@ -77,7 +78,9 @@ func (pool *Pool) clean() {
 		if taskCn != nil {
 			if now.Sub(taskCn.lastUsedTime) >= pool.MaxIdleWorkerTime {
 				pool.dec()
+				pool.cleanlock.Lock()
 				close(taskCn.ch)
+				pool.cleanlock.Unlock()
 			} else {
 				tmp[cnt] = taskCn
 				cnt++
@@ -137,8 +140,10 @@ func (pool *Pool) Put(task Task) error {
 		return errors.New("THE POOL HAS BEEN STOPPED")
 	}
 
+	pool.cleanlock.Lock()
 	taskCh := pool.getTaskChan()
 	taskCh.ch <-task
+	pool.cleanlock.Unlock()
 
 	return nil
 }
