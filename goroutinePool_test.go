@@ -1,6 +1,7 @@
 package goroutinePool
 
 import (
+	"fmt"
 	"log"
 	"sync"
 	"sync/atomic"
@@ -13,7 +14,7 @@ var sum uint64 = 0
 var wg = sync.WaitGroup{}
 
 var handler = func(params ...interface{}) {
-	wg.Done()
+	defer wg.Done()
 	for i := 0; i < 100; i++ {
 		atomic.AddUint64(&sum, 1)
 	}
@@ -22,7 +23,7 @@ var handler = func(params ...interface{}) {
 var runtimes = 1000000
 
 func TestPoolPut(t *testing.T) {
-	pool := NewGoroutinePool(100, time.Second)
+	pool := NewGoroutinePool(20, 3 * time.Second)
 	err := pool.Serve()
 	if err != nil {
 		t.Error()
@@ -43,6 +44,7 @@ func TestPoolPut(t *testing.T) {
 	wg.Wait()
 
 	if sum != uint64(100 * runtimes) {
+		fmt.Println(sum)
 		t.Error()
 	}
 }
@@ -50,7 +52,7 @@ func TestPoolPut(t *testing.T) {
 func BenchmarkPool(b *testing.B) {
 	b.ReportAllocs()
 
-	pool := NewGoroutinePool(100, time.Second)
+	pool := NewGoroutinePool(20, 3 * time.Second)
 	pool.Serve()
 	defer pool.Stop()
 

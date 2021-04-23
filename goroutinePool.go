@@ -26,6 +26,7 @@ type Pool struct {
 	MaxIdleWorkerTime time.Duration
 	stop bool
 	lock sync.Locker
+	cleanlock sync.Locker
 }
 
 func NewGoroutinePool(maxWorkerCount int, maxIdleWorkerTime time.Duration) *Pool {
@@ -67,16 +68,16 @@ func (pool *Pool) Serve() error {
 
 func (pool *Pool) clean() {
 	now := time.Now()
+	cnt := 0
 	pool.lock.Lock()
 	defer pool.lock.Unlock()
-	var tmp = make([]*taskChan, pool.MaxWorkerCount)
-	cnt := 0
+	var tmp = make([]*taskChan, pool.getCurrentWorkerCount())
 
 	for _, taskCn := range pool.taskChans {
 		if taskCn != nil {
 			if now.Sub(taskCn.lastUsedTime) >= pool.MaxIdleWorkerTime {
-				close(taskCn.ch)
 				pool.dec()
+				close(taskCn.ch)
 			} else {
 				tmp[cnt] = taskCn
 				cnt++
@@ -138,8 +139,8 @@ func (pool *Pool) Put(task Task) error {
 
 	taskCh := pool.getTaskChan()
 	taskCh.ch <-task
-	return nil
 
+	return nil
 }
 
 func (pool *Pool) Stop() {
