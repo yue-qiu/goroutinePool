@@ -5,6 +5,7 @@ import (
 	"log"
 	"math/rand"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -38,7 +39,7 @@ func NewGoroutinePool(maxWorkerCount int, maxIdleWorkerTime time.Duration) *Pool
 }
 
 func (pool *Pool) getCurrentWorkerCount() int {
-	return int(pool.currentWorkerCount)
+	return int(atomic.LoadInt64(&pool.currentWorkerCount))
 }
 
 func (pool *Pool) Serve() error {

@@ -59,9 +59,18 @@ CPU: Intel(R) Core(TM) i5-7300HQ CPU @ 2.50GHz
 RAM: 16G
 
 go version: 1.15.6 windows/amd64
+
+command:
+
+```go
+$ go test -benchmem -run=none -bench=. -benchtime=3s goroutinePool_test.go goroutinePool.go
+```
+
+result:
+
 ```
 goos: windows
 goarch: amd64
-BenchmarkPool-4                        2        1962998900 ns/op            4048 B/op         31 allocs/op
-BenchmarkWithoutPool-4                 2        2078511750 ns/op        68153152 B/op     159009 allocs/op
+BenchmarkPool-4                        2        2132499350 ns/op            4856 B/op         35 allocs/op
+BenchmarkWithoutPool-4                 2        2374031550 ns/op        69073600 B/op     161406 allocs/op
 ```
