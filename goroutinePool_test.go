@@ -23,7 +23,7 @@ var handler = func(params ...interface{}) {
 var runtimes = 1000000
 
 func TestPoolPut(t *testing.T) {
-	pool := NewGoroutinePool(20, 3 * time.Second)
+	pool := NewGoroutinePool(20, 1 * time.Second)
 	err := pool.Serve()
 	if err != nil {
 		t.Error()

@@ -26,7 +26,6 @@ type Pool struct {
 	MaxIdleWorkerTime time.Duration
 	stop bool
 	lock sync.Locker
-	cleanlock sync.Locker
 }
 
 func NewGoroutinePool(maxWorkerCount int, maxIdleWorkerTime time.Duration) *Pool {
@@ -36,7 +35,6 @@ func NewGoroutinePool(maxWorkerCount int, maxIdleWorkerTime time.Duration) *Pool
 		taskChans: make([]*taskChan, maxWorkerCount),
 		stop: false,
 		lock: &sync.Mutex{},
-		cleanlock: &sync.Mutex{},
 	}
 }
 
@@ -77,10 +75,9 @@ func (pool *Pool) clean() {
 	for _, taskCn := range pool.taskChans {
 		if taskCn != nil {
 			if now.Sub(taskCn.lastUsedTime) >= pool.MaxIdleWorkerTime {
-				pool.dec()
-				pool.cleanlock.Lock()
+				//pool.dec()
+				pool.currentWorkerCount--
 				close(taskCn.ch)
-				pool.cleanlock.Unlock()
 			} else {
 				tmp[cnt] = taskCn
 				cnt++
@@ -117,8 +114,6 @@ func (pool *Pool) consume(taskCh *taskChan) {
 
 func (pool *Pool) getTaskChan() *taskChan {
 	var taskCh *taskChan
-	pool.lock.Lock()
-	defer pool.lock.Unlock()
 
 	if pool.getCurrentWorkerCount() < pool.MaxWorkerCount {
 		// create a new worker
@@ -126,7 +121,8 @@ func (pool *Pool) getTaskChan() *taskChan {
 			ch: make(chan Task, 0),
 		}
 		pool.taskChans[pool.getCurrentWorkerCount()] = taskCh
-		pool.inc()
+		//pool.inc()
+		pool.currentWorkerCount++
 		pool.consume(taskCh)
 	} else { // random choose a old worker
 		taskCh = pool.taskChans[rand.Intn(pool.getCurrentWorkerCount())]
@@ -136,14 +132,14 @@ func (pool *Pool) getTaskChan() *taskChan {
 }
 
 func (pool *Pool) Put(task Task) error {
+	pool.lock.Lock()
 	if pool.stop {
 		return errors.New("THE POOL HAS BEEN STOPPED")
 	}
 
-	pool.cleanlock.Lock()
 	taskCh := pool.getTaskChan()
 	taskCh.ch <-task
-	pool.cleanlock.Unlock()
+	pool.lock.Unlock()
 
 	return nil
 }
