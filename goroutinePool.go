@@ -5,7 +5,6 @@ import (
 	"log"
 	"math/rand"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -38,14 +37,6 @@ func NewGoroutinePool(maxWorkerCount int, maxIdleWorkerTime time.Duration) *Pool
 	}
 }
 
-func (pool *Pool) dec() {
-	atomic.AddInt64(&pool.currentWorkerCount, -1)
-}
-
-func (pool *Pool) inc() {
-	atomic.AddInt64(&pool.currentWorkerCount, 1)
-}
-
 func (pool *Pool) getCurrentWorkerCount() int {
 	return int(pool.currentWorkerCount)
 }
@@ -75,7 +66,6 @@ func (pool *Pool) clean() {
 	for _, taskCn := range pool.taskChans {
 		if taskCn != nil {
 			if now.Sub(taskCn.lastUsedTime) >= pool.MaxIdleWorkerTime {
-				//pool.dec()
 				pool.currentWorkerCount--
 				close(taskCn.ch)
 			} else {
@@ -92,9 +82,9 @@ func (pool *Pool) clean() {
 }
 
 func (pool *Pool) consume(taskCh *taskChan) {
-	// 为这个 taskChan 开启一个对应的 goroutine
+	// create a goroutine for this taskChan
 	go func() {
-		// 防止 task 运行时发生 panic 导致整个程序崩溃
+		// in case of panic
 		defer func() {
 			if r := recover(); r != nil {
 				log.Printf("task panic: %s\n", r)
@@ -121,7 +111,6 @@ func (pool *Pool) getTaskChan() *taskChan {
 			ch: make(chan Task, 0),
 		}
 		pool.taskChans[pool.getCurrentWorkerCount()] = taskCh
-		//pool.inc()
 		pool.currentWorkerCount++
 		pool.consume(taskCh)
 	} else { // random choose a old worker
