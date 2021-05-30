@@ -68,11 +68,11 @@ command:
 $ go test -benchmem -run=none -bench=. -benchtime=3s goroutinePool_test.go goroutinePool.go
 ```
 
-协程池的内存占用大约是原生的 `1/14000`，动态分配次数大约是原生的 `1/6400`。
+协程池的内存占用大约是原生的 `1/4000`，动态分配次数大约是原生的 `1/1700`。
 
 ```
 goos: windows
 goarch: amd64
-BenchmarkPool-4                        2        2132499350 ns/op            4856 B/op         35 allocs/op
-BenchmarkWithoutPool-4                 2        2374031550 ns/op        69073600 B/op     161406 allocs/op
+BenchmarkPool-4   	       1	1942008200 ns/op	   16024 B/op	      93 allocs/op
+BenchmarkWithoutPool-4         2        2374031550 ns/op        69073600 B/op     161406 allocs/op
 ```

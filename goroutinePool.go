@@ -29,6 +29,7 @@ type Pool struct {
 }
 
 func NewGoroutinePool(maxWorkerCount int, maxIdleWorkerTime time.Duration) *Pool {
+	rand.Seed(time.Now().UnixNano())
 	return &Pool{
 		MaxIdleWorkerTime: maxIdleWorkerTime,
 		MaxWorkerCount: maxWorkerCount,
